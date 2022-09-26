@@ -14,6 +14,8 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.Player;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 
 import io.github.bakedlibs.dough.protection.Interaction;
@@ -151,9 +153,31 @@ public class MinerAndroid extends ProgrammableAndroid {
                 block.getWorld().playSound(block.getLocation(), Sound.BLOCK_FIRE_EXTINGUISH, 0.075F, 0.8F);
                 block.getWorld().spawnParticle(Particle.SMOKE_NORMAL, block.getX() + 0.5, block.getY() + 1.25, block.getZ() + 0.5, 8, 0.5, 0.5, 0.5, 0.015);
             } else {
+                String name = BlockStorage.getLocationInfo(block.getLocation(), "owner");
+                if (name != null) {
+                    Player owner = Bukkit.getPlayer(UUID.fromString(name));
+                    if (owner != null) {
+                        BlockBreakEvent e = new BlockBreakEvent(block, owner);
+                        Bukkit.getPluginManager().callEvent(e);
+                        if (e.isCancelled()) {
+                            return;
+                        }
+                    }
+                }
                 block.setType(Material.AIR);
             }
         } else {
+            String name = BlockStorage.getLocationInfo(block.getLocation(), "owner");
+            if (name != null) {
+                Player owner = Bukkit.getPlayer(UUID.fromString(name));
+                if (owner != null) {
+                    BlockBreakEvent e = new BlockBreakEvent(block, owner);
+                    Bukkit.getPluginManager().callEvent(e);
+                    if (e.isCancelled()) {
+                        return;
+                    }
+                }
+            }
             block.setType(Material.AIR);
         }
     }

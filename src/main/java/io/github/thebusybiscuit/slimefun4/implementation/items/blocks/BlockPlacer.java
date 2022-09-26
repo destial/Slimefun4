@@ -190,7 +190,20 @@ public class BlockPlacer extends SlimefunItem {
             boolean hasItemHandler = sfItem.callItemHandler(BlockPlaceHandler.class, handler -> {
                 if (handler.isBlockPlacerAllowed()) {
                     schedulePlacement(block, dispenser.getInventory(), item, () -> {
+                        BlockStateSnapshotResult blockState = PaperLib.getBlockState(block, false);
                         block.setType(item.getType());
+                        String owner = BlockStorage.getLocationInfo(dispenser.getLocation(), "owner");
+                        if (owner != null) {
+                            Player player = Bukkit.getPlayer(UUID.fromString(owner));
+                            if (player != null) {
+                                BlockPlaceEvent ev = new BlockPlaceEvent(block, blockState.getState(), block, item, player, hasPermission(dispenser, block));
+                                Bukkit.getPluginManager().callEvent(ev);
+                                if (ev.isCancelled()) {
+                                    block.setBlockData(blockState.getState().getBlockData());
+                                    return;
+                                }
+                            }
+                        }
                         BlockStorage.store(block, sfItem.getId());
 
                         handler.onBlockPlacerPlace(e);
@@ -214,13 +227,26 @@ public class BlockPlacer extends SlimefunItem {
 
         if (!e.isCancelled()) {
             schedulePlacement(facedBlock, dispenser.getInventory(), item, () -> {
+                BlockStateSnapshotResult blockState = PaperLib.getBlockState(facedBlock, false);
                 facedBlock.setType(item.getType());
+                String owner = BlockStorage.getLocationInfo(dispenser.getLocation(), "owner");
+                if (owner != null) {
+                    Player player = Bukkit.getPlayer(UUID.fromString(owner));
+                    if (player != null) {
+                        BlockPlaceEvent ev = new BlockPlaceEvent(facedBlock, blockState.getState(), facedBlock, item, player, hasPermission(dispenser, facedBlock));
+                        Bukkit.getPluginManager().callEvent(ev);
+                        if (ev.isCancelled()) {
+                            facedBlock.setBlockData(blockState.getState().getBlockData());
+                            return;
+                        }
+                    }
+                }
 
                 if (item.hasItemMeta()) {
                     ItemMeta meta = item.getItemMeta();
 
                     if (meta.hasDisplayName()) {
-                        BlockStateSnapshotResult blockState = PaperLib.getBlockState(facedBlock, false);
+                        blockState = PaperLib.getBlockState(facedBlock, false);
 
                         if (blockState.getState() instanceof Nameable nameable) {
                             nameable.setCustomName(meta.getDisplayName());
