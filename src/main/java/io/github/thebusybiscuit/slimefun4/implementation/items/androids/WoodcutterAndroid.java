@@ -14,6 +14,8 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.Player;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 
 import io.github.bakedlibs.dough.blocks.Vein;
@@ -71,6 +73,17 @@ public class WoodcutterAndroid extends ProgrammableAndroid {
 
     @ParametersAreNonnullByDefault
     private void breakLog(Block log, Block android, BlockMenu menu, BlockFace face) {
+        String name = BlockStorage.getLocationInfo(log.getLocation(), "owner");
+        if (name != null) {
+            Player player = Bukkit.getPlayer(UUID.fromString(name));
+            if (player != null) {
+                BlockBreakEvent e = new BlockBreakEvent(log, player);
+                Bukkit.getPluginManager().callEvent(e);
+                if (e.isCancelled()) {
+                    return;
+                }
+            }
+        }
         ItemStack drop = new ItemStack(log.getType());
 
         // We try to push the log into the android's inventory, but nothing happens if it does not fit

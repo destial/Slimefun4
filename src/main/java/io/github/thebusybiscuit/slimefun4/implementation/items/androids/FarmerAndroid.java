@@ -1,16 +1,22 @@
 package io.github.thebusybiscuit.slimefun4.implementation.items.androids;
 
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import me.mrCookieSlime.Slimefun.api.BlockStorage;
 import org.bukkit.Bukkit;
 import org.bukkit.Effect;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.Ageable;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.entity.Player;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockFertilizeEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.inventory.ItemStack;
 
 import io.github.thebusybiscuit.slimefun4.api.events.AndroidFarmEvent;
@@ -52,6 +58,19 @@ public class FarmerAndroid extends ProgrammableAndroid {
         Bukkit.getPluginManager().callEvent(event);
 
         if (!event.isCancelled()) {
+            String name = BlockStorage.getLocationInfo(b.getLocation(), "owner");
+            if (name != null) {
+                Player player = Bukkit.getPlayer(UUID.fromString(name));
+                if (player != null) {
+                    BlockBreakEvent e = new BlockBreakEvent(block, player);
+                    Bukkit.getPluginManager().callEvent(e);
+
+                    if (e.isCancelled()) {
+                        return;
+                    }
+                }
+            }
+
             drop = event.getDrop();
 
             if (drop != null && menu.pushItem(drop, getOutputSlots()) == null) {
