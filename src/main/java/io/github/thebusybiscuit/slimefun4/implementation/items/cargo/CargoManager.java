@@ -59,23 +59,19 @@ public class CargoManager extends SlimefunItem implements HologramOwner {
                 return false;
             }
 
-        }, new BlockUseHandler() {
+        }, (BlockUseHandler) e -> {
+            Optional<Block> block = e.getClickedBlock();
 
-            @Override
-            public void onRightClick(PlayerRightClickEvent e) {
-                Optional<Block> block = e.getClickedBlock();
+            if (block.isPresent()) {
+                Player p = e.getPlayer();
+                Block b = block.get();
 
-                if (block.isPresent()) {
-                    Player p = e.getPlayer();
-                    Block b = block.get();
-
-                    if (BlockStorage.getLocationInfo(b.getLocation(), "visualizer") == null) {
-                        BlockStorage.addBlockInfo(b, "visualizer", "disabled");
-                        p.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cCargo Net Visualizer: " + "&4\u2718"));
-                    } else {
-                        BlockStorage.addBlockInfo(b, "visualizer", null);
-                        p.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cCargo Net Visualizer: " + "&2\u2714"));
-                    }
+                if (BlockStorage.getLocationInfo(b.getLocation(), "visualizer") == null) {
+                    BlockStorage.addBlockInfo(b, "visualizer", "disabled");
+                    p.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cCargo Net Visualizer: " + "&4\u2718"));
+                } else {
+                    BlockStorage.addBlockInfo(b, "visualizer", null);
+                    p.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cCargo Net Visualizer: " + "&2\u2714"));
                 }
             }
         });

@@ -8,10 +8,15 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
+import io.github.thebusybiscuit.slimefun4.implementation.Slimefun;
 import org.apache.commons.lang.Validate;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.BlockState;
+import org.bukkit.block.Hopper;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
@@ -44,6 +49,7 @@ import me.mrCookieSlime.Slimefun.Objects.handlers.BlockTicker;
 import me.mrCookieSlime.Slimefun.api.BlockStorage;
 import me.mrCookieSlime.Slimefun.api.inventory.BlockMenu;
 import me.mrCookieSlime.Slimefun.api.inventory.BlockMenuPreset;
+import org.bukkit.material.Directional;
 
 // TODO: Replace this with "AbstractContainer" and "AbstractElectricalMachine" classes.
 public abstract class AContainer extends SlimefunItem implements InventoryBlock, EnergyNetComponent, MachineProcessHolder<CraftingOperation> {
@@ -348,21 +354,50 @@ public abstract class AContainer extends SlimefunItem implements InventoryBlock,
         });
     }
 
+    private static final BlockFace[] HOPPER_CHECKS = new BlockFace[] {
+            BlockFace.EAST,
+            BlockFace.NORTH,
+            BlockFace.WEST,
+            BlockFace.SOUTH,
+            BlockFace.UP
+    };
+
     protected void tick(Block b) {
         BlockMenu inv = BlockStorage.getInventory(b);
         CraftingOperation currentOperation = processor.getOperation(b);
+        Block blockBelow = inv.getBlock().getRelative(BlockFace.DOWN);
 
         if (currentOperation != null) {
             if (takeCharge(b.getLocation())) {
-
                 if (!currentOperation.isFinished()) {
                     processor.updateProgressBar(inv, 22, currentOperation);
                     currentOperation.addProgress(1);
                 } else {
                     inv.replaceExistingItem(22, new CustomItemStack(Material.BLACK_STAINED_GLASS_PANE, " "));
 
-                    for (ItemStack output : currentOperation.getResults()) {
-                        inv.pushItem(output.clone(), getOutputSlots());
+                    if (blockBelow.getType() == Material.HOPPER) {
+                        CraftingOperation finalCurrentOperation = currentOperation;
+                        Bukkit.getScheduler().runTask(Slimefun.instance(), () -> {
+                            BlockState blockBelowState = blockBelow.getState();
+                            Hopper hopper = (Hopper) blockBelowState;
+                            for (ItemStack output : finalCurrentOperation.getResults()) {
+                                if (!hopper.isLocked()) {
+                                    Inventory hopperInventory = hopper.getInventory();
+                                    Map<Integer, ItemStack> remaining = hopperInventory.addItem(output.clone());
+                                    if (!remaining.isEmpty()) {
+                                        for (ItemStack remain : remaining.values()) {
+                                            inv.pushItem(remain, getOutputSlots());
+                                        }
+                                    }
+                                    continue;
+                                }
+                                inv.pushItem(output.clone(), getOutputSlots());
+                            }
+                        });
+                    } else {
+                        for (ItemStack output : currentOperation.getResults()) {
+                            inv.pushItem(output.clone(), getOutputSlots());
+                        }
                     }
 
                     processor.endOperation(b);
@@ -378,6 +413,51 @@ public abstract class AContainer extends SlimefunItem implements InventoryBlock,
                 // Fixes #3534 - Update indicator immediately
                 processor.updateProgressBar(inv, 22, currentOperation);
             }
+        }
+
+        for (BlockFace hopperCheck : HOPPER_CHECKS) {
+            Block block = inv.getBlock().getRelative(hopperCheck);
+
+            if (block.getType() == Material.HOPPER) {
+                Bukkit.getScheduler().runTask(Slimefun.instance(), () -> {
+                    Hopper hopper = (Hopper) block.getState();
+                    if (hopper.isLocked()) return;
+                    Directional direction = (Directional) hopper.getData();
+                    Block facing = block.getRelative(direction.getFacing());
+                    if (facing.getLocation().equals(inv.getLocation())) {
+                        ItemStack first = null;
+                        for (ItemStack item : hopper.getInventory()) {
+                           if (item == null || item.getType() == Material.AIR) continue;
+                           first = item;
+                           break;
+                        }
+                        if (first == null) return;
+                        ItemStack notFit = inv.pushItem(first.clone(), getInputSlots());
+                        first.setAmount(notFit != null ? notFit.getAmount() : 0);
+                   }
+                });
+            }
+        }
+
+        if (blockBelow.getType() == Material.HOPPER) {
+            Bukkit.getScheduler().runTask(Slimefun.instance(), () -> {
+                Hopper hopper = (Hopper) blockBelow.getState();
+                for (int slot : getOutputSlots()) {
+                    ItemStack itemStack = inv.getItemInSlot(slot);
+                    if (itemStack == null || itemStack.getType() == Material.AIR) continue;
+                    Inventory hopperInventory = hopper.getInventory();
+                    if (!hopper.isLocked()) {
+                        Map<Integer, ItemStack> notFit = hopperInventory.addItem(itemStack);
+                        if (!notFit.isEmpty()) {
+                            for (ItemStack remain : notFit.values()) {
+                                itemStack.setAmount(remain.getAmount());
+                            }
+                        } else {
+                            itemStack.setAmount(0);
+                        }
+                    }
+                }
+            });
         }
     }
 
@@ -399,10 +479,8 @@ public abstract class AContainer extends SlimefunItem implements InventoryBlock,
             }
 
             setCharge(l, charge - getEnergyConsumption());
-            return true;
-        } else {
-            return true;
         }
+        return true;
     }
 
     protected MachineRecipe findNextRecipe(BlockMenu inv) {

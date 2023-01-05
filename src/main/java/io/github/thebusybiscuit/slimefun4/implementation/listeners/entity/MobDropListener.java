@@ -6,6 +6,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import javax.annotation.Nonnull;
 
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -37,20 +38,20 @@ public class MobDropListener implements Listener {
 
     @EventHandler
     public void onEntityKill(EntityDeathEvent e) {
-        if (e.getEntity().getKiller() != null) {
-            Player p = e.getEntity().getKiller();
-            ItemStack item = p.getInventory().getItemInMainHand();
+        Player p = e.getEntity().getKiller();
 
-            Set<ItemStack> customDrops = Slimefun.getRegistry().getMobDrops().get(e.getEntityType());
+        Set<ItemStack> customDrops = Slimefun.getRegistry().getMobDrops().get(e.getEntityType());
 
-            if (customDrops != null && !customDrops.isEmpty()) {
-                for (ItemStack drop : customDrops) {
-                    if (canDrop(p, drop)) {
-                        e.getDrops().add(drop.clone());
-                    }
+        if (customDrops != null && !customDrops.isEmpty()) {
+            for (ItemStack drop : customDrops) {
+                if (canDrop(e.getEntity().getWorld(), p, drop)) {
+                    e.getDrops().add(drop.clone());
                 }
             }
+        }
 
+        if (p != null) {
+            ItemStack item = p.getInventory().getItemInMainHand();
             if (item.getType() != Material.AIR) {
                 SlimefunItem sfItem = SlimefunItem.getByItem(item);
 
@@ -61,27 +62,39 @@ public class MobDropListener implements Listener {
         }
     }
 
-    private boolean canDrop(@Nonnull Player p, @Nonnull ItemStack item) {
+    private boolean canDrop(@Nonnull World world, Player p, @Nonnull ItemStack item) {
         SlimefunItem sfItem = SlimefunItem.getByItem(item);
 
         if (sfItem == null) {
             return true;
-        } else if (sfItem.canUse(p, true)) {
-            if (sfItem instanceof RandomMobDrop randomMobDrop) {
-                int random = ThreadLocalRandom.current().nextInt(100);
+        }
 
-                if (randomMobDrop.getMobDropChance() <= random) {
-                    return false;
-                }
-            }
-
-            if (sfItem instanceof BasicCircuitBoard basicCircuitBoard) {
-                return basicCircuitBoard.isDroppedFromGolems();
-            }
-
-            return true;
-        } else {
+        if (sfItem.isDisabledIn(world)) {
             return false;
         }
+
+        if (sfItem instanceof BasicCircuitBoard basicCircuitBoard) {
+            int random = ThreadLocalRandom.current().nextInt(100);
+
+            if (basicCircuitBoard.getMobDropChance() <= random) {
+                return false;
+            }
+
+            return basicCircuitBoard.isDroppedFromGolems();
+        }
+
+        if (p != null) {
+            if (sfItem.canUse(p, true)) {
+                if (sfItem instanceof RandomMobDrop randomMobDrop) {
+                    int random = ThreadLocalRandom.current().nextInt(100);
+
+                    return randomMobDrop.getMobDropChance() > random;
+                }
+
+                return true;
+            }
+        }
+
+        return false;
     }
 }
